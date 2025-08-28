@@ -1,0 +1,4 @@
+repository "AcervoUFSM/AcervoUFSM@2785298@cloud"
+  path "/"
+    br "/main"
+    co "/main"

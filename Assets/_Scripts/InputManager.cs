@@ -10,6 +10,7 @@ public class InputManager : MonoBehaviour
     // player
     private PlayerMotor motor;
     private PlayerLook look;
+    private RuntimeSelectorMover_Input selectorMover;
 
     void Awake()
     {
@@ -17,12 +18,17 @@ public class InputManager : MonoBehaviour
         playerActions = playerInput.Player;
         motor = GetComponent<PlayerMotor>();
         look = GetComponent<PlayerLook>();
+        selectorMover = GetComponent<RuntimeSelectorMover_Input>();
 
         playerActions.Jump.performed += ctx => motor.Jump();
+        playerActions.Interact.performed += ctx => motor.Interact();
+        playerActions.Selection.performed += ctx => selectorMover.Selection();
+        playerActions.Gizmo.performed += ctx => selectorMover.ToggleGizmoMode();
 
         Cursor.lockState = CursorLockMode.Locked;
         Cursor.visible = false;
     }
+
 
     void FixedUpdate()
     {

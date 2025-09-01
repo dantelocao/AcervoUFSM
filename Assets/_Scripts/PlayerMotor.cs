@@ -5,6 +5,9 @@ public class PlayerMotor : MonoBehaviour
     // controller
     private CharacterController characterController;
 
+    public GameObject debugMenu;
+    private bool debugMenuActive = false;
+
     // variables
     private bool isGrounded;
     public Vector3 playerVelocity; // velocity applied in Y axis for gravity
@@ -37,9 +40,36 @@ public class PlayerMotor : MonoBehaviour
 
     public void Jump()
     {
+        print("jump");
         if (isGrounded)
         {
             playerVelocity.y = Mathf.Sqrt(jumpHeight * -3.0f * gravity);
         }
+    }
+
+    public void Interact()
+    {
+        if (debugMenu)
+        {
+            debugMenuActive = !debugMenuActive;
+            debugMenu.SetActive(debugMenuActive);
+            if (debugMenuActive)
+                LiberarCursor();
+            else
+                TravarCursor();
+        }
+
+    }
+
+    void LiberarCursor()
+    {
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
+    }
+
+    void TravarCursor()
+    {
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible = false;
     }
 }

@@ -1556,6 +1556,7 @@ GameObject:
   m_Component:
   - component: {fileID: 728764896}
   - component: {fileID: 728764897}
+  - component: {fileID: 728764898}
   m_Layer: 0
   m_Name: imageLoader
   m_TagString: Untagged
@@ -1585,7 +1586,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 728764894}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 953d73ca5ff877c4486f04f279bf864d, type: 3}
   m_Name: 
@@ -1599,6 +1600,28 @@ MonoBehaviour:
   - {fileID: 954165530438705100}
   - {fileID: 8316354657650191305}
   - {fileID: 4615327990961429038}
+--- !u!114 &728764898
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 728764894}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: dd754f290bdcbdc44b7111bebc6572a3, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  planeRenderers:
+  - {fileID: 5896769533240202729}
+  - {fileID: 2274381861890729604}
+  - {fileID: 764938814570174531}
+  - {fileID: 360917358664416078}
+  - {fileID: 954165530438705100}
+  - {fileID: 8316354657650191305}
+  - {fileID: 4615327990961429038}
+  localStorageKey: selectedArtworks
+  proxyBase: https://projetosoftware2-ufsm.vercel.app/api/img?url=
 --- !u!1 &762047642
 GameObject:
   m_ObjectHideFlags: 0

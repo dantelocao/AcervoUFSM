@@ -4,7 +4,7 @@ using UnityEngine.InputSystem;
 
 public class RuntimeTransformGizmo : MonoBehaviour
 {
-    public enum GizmoMode { Translate, Rotate }
+    public enum GizmoMode { Translate, Rotate, Scale }
     public enum RotateStyle { Ring, AxisDrag }
 
     #region Inspector
@@ -39,6 +39,11 @@ public class RuntimeTransformGizmo : MonoBehaviour
     public Material axisMatTemplate; // ex.: URP/Lit
     public Material ringMatTemplate; // ex.: URP/Unlit
 
+    [Header("Tamanho em tela")]
+    public bool keepConstantScreenSize = true;
+    [Range(40, 300)] public float targetScreenSizePx = 120f; // altura desejada em pixels
+
+
     [Header("Debug")]
     public bool debugLogs = false;
     #endregion
@@ -50,6 +55,7 @@ public class RuntimeTransformGizmo : MonoBehaviour
     Plane dragPlane;
     Vector3 dragStartWorld;
     Vector3 targetStartPos;
+    Vector3 targetStartScale;
     Quaternion targetStartRot;
     Vector2 lastMouse;
     Vector3 ringStartDir;
@@ -66,6 +72,7 @@ public class RuntimeTransformGizmo : MonoBehaviour
         public Transform root;
         public Axis axis;
         public bool isRing;
+        public bool isScale;
         public readonly List<Collider> colliders = new();
         public Vector3 axisWorld;
         public Material mat;
@@ -112,6 +119,12 @@ public class RuntimeTransformGizmo : MonoBehaviour
 
         transform.position = target.position;
         transform.rotation = spaceIsGlobal ? Quaternion.identity : target.rotation;
+
+        if (keepConstantScreenSize && cam && target)
+        {
+            float scale = ComputeScreenConstantScale(transform.position, targetScreenSizePx);
+            transform.localScale = Vector3.one * scale;
+        }
 
         UpdateAxisWorld();
 
@@ -162,9 +175,12 @@ public class RuntimeTransformGizmo : MonoBehaviour
         activeHandle = h;
         targetStartPos = target.position;
         targetStartRot = target.rotation;
+        if (mode == GizmoMode.Scale) targetStartScale = target.localScale;
 
-        // Translate OU Rotate (AxisDrag pelas setas)
-        if (mode == GizmoMode.Translate || (mode == GizmoMode.Rotate && rotateStyle == RotateStyle.AxisDrag && !h.isRing))
+        // Translate, Rotate (AxisDrag pelas setas) OU Scale (eixos com cubo)
+        if (mode == GizmoMode.Translate ||
+            (mode == GizmoMode.Rotate && rotateStyle == RotateStyle.AxisDrag && !h.isRing) ||
+            (mode == GizmoMode.Scale))
         {
             var n1 = cam.transform.forward; // plano da tela
             var camDir = (cam.transform.position - transform.position).normalized;
@@ -181,11 +197,16 @@ public class RuntimeTransformGizmo : MonoBehaviour
             if (RayToPlane(MouseRay(), dragPlane, out dragStartWorld))
             {
                 lastMouse = Mouse.current.position.ReadValue();
-                if (debugLogs) Debug.Log($"[Gizmo] BeginDrag Translate/Axes ({h.axis})");
+                if (debugLogs)
+                {
+                    string label = mode == GizmoMode.Scale ? "Scale/Axes"
+                                  : (mode == GizmoMode.Translate ? "Translate/Axes" : "Rotate AxisDrag");
+                    Debug.Log($"[Gizmo] BeginDrag {label} ({h.axis})");
+                }
             }
             else
             {
-                if (debugLogs) Debug.Log("[Gizmo] Falhou calcular ponto inicial (Translate).");
+                if (debugLogs) Debug.Log("[Gizmo] Falhou calcular ponto inicial (AxisDrag/Scale).");
                 activeHandle = null;
             }
             return;
@@ -221,10 +242,57 @@ public class RuntimeTransformGizmo : MonoBehaviour
         }
     }
 
+
     void DoDrag()
     {
-        // Translate OU Rotate por setas (AxisDrag)
-        if (mode == GizmoMode.Translate || (mode == GizmoMode.Rotate && rotateStyle == RotateStyle.AxisDrag && !activeHandle.isRing))
+        if (activeHandle == null) return;
+
+        // ========== SCALE ==========
+        if (mode == GizmoMode.Scale && !activeHandle.isRing)
+        {
+            if (!RayToPlane(MouseRay(), dragPlane, out var hit)) return;
+
+            var delta = hit - dragStartWorld;
+            var axisWorld = activeHandle.axisWorld.normalized;
+
+            // projeção do movimento do mouse no eixo ativo
+            float mag = Vector3.Dot(delta, axisWorld) * dragSensitivity;
+
+            // fator de escala (1 = sem mudança)
+            // positivo aumenta; negativo diminui
+            // dica: use valores pequenos de dragSensitivity pra não "explodir" a escala
+            bool uniform = Keyboard.current != null && Keyboard.current.shiftKey.isPressed;
+            const float MinScale = 0.01f; // anti zero/negativo
+
+            if (uniform)
+            {
+                float f = Mathf.Max(MinScale, 1f + mag);
+                var s = targetStartScale * f;
+                s.x = Mathf.Max(MinScale, s.x);
+                s.y = Mathf.Max(MinScale, s.y);
+                s.z = Mathf.Max(MinScale, s.z);
+                target.localScale = s;
+            }
+            else
+            {
+                // escala por eixo
+                var s = targetStartScale;
+                float f = Mathf.Max(MinScale, 1f + mag);
+
+                switch (activeHandle.axis)
+                {
+                    case Axis.X: s.x = Mathf.Max(MinScale, targetStartScale.x * f); break;
+                    case Axis.Y: s.y = Mathf.Max(MinScale, targetStartScale.y * f); break;
+                    case Axis.Z: s.z = Mathf.Max(MinScale, targetStartScale.z * f); break;
+                }
+                target.localScale = s;
+            }
+            return;
+        }
+
+        // ========== TRANSLATE ou ROTATE por setas (AxisDrag) ==========
+        if (mode == GizmoMode.Translate ||
+            (mode == GizmoMode.Rotate && rotateStyle == RotateStyle.AxisDrag && !activeHandle.isRing))
         {
             if (!RayToPlane(MouseRay(), dragPlane, out var hit)) return;
 
@@ -247,7 +315,7 @@ public class RuntimeTransformGizmo : MonoBehaviour
             return;
         }
 
-        // Rotate por anel (Ring)
+        // ========== ROTATE por anel (Ring) ==========
         if (!RayToPlane(MouseRay(), dragPlane, out var hitRing)) return;
 
         var curDir = (hitRing - transform.position);
@@ -259,6 +327,7 @@ public class RuntimeTransformGizmo : MonoBehaviour
 
         target.rotation = Quaternion.AngleAxis(signedAngle, rotAxis) * targetStartRot;
     }
+
 
     void EndDrag()
     {
@@ -342,7 +411,50 @@ public class RuntimeTransformGizmo : MonoBehaviour
         CreateRing(Axis.X, Color.red, Quaternion.FromToRotation(Vector3.up, Vector3.right));
         CreateRing(Axis.Y, Color.green, Quaternion.identity);
         CreateRing(Axis.Z, Color.blue, Quaternion.FromToRotation(Vector3.up, Vector3.forward));
+
+        // Scale (cubos)
+        CreateScaleAxis(Axis.X, Color.yellow, Quaternion.FromToRotation(Vector3.up, Vector3.right));
+        CreateScaleAxis(Axis.Y, Color.yellow, Quaternion.identity);
+        CreateScaleAxis(Axis.Z, Color.yellow, Quaternion.FromToRotation(Vector3.up, Vector3.forward));
     }
+
+    void CreateScaleAxis(Axis axis, Color color, Quaternion rot)
+    {
+        var root = new GameObject("Handle_" + axis + "_Scale").transform;
+        root.SetParent(transform, false);
+        root.localRotation = rot;
+
+        // Haste
+        var shaft = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+        shaft.name = "Shaft";
+        shaft.transform.SetParent(root, false);
+        shaft.transform.localScale = new Vector3(axisRadius, axisLength * 0.5f, axisRadius);
+        shaft.transform.localPosition = new Vector3(0f, axisLength * 0.5f, 0f);
+
+        // Cubo na ponta (indicador de scale)
+        var cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        cube.name = "Cube";
+        cube.transform.SetParent(root, false);
+        cube.transform.localScale = Vector3.one * coneRadius * 2f;
+        cube.transform.localPosition = new Vector3(0f, axisLength + (coneRadius), 0f);
+
+        var mat = axisMatTemplate ? new Material(axisMatTemplate)
+                                  : SafeMaterial("Universal Render Pipeline/Lit", color);
+        shaft.GetComponent<MeshRenderer>().sharedMaterial = mat;
+        cube.GetComponent<MeshRenderer>().sharedMaterial = mat;
+
+        var envelope = root.gameObject.AddComponent<BoxCollider>();
+        envelope.isTrigger = true;
+        envelope.center = new Vector3(0f, axisLength * 0.5f, 0f);
+        envelope.size = new Vector3(coneRadius * 2.5f, axisLength + coneRadius * 2f, coneRadius * 2.5f);
+
+        var h = new Handle { root = root, axis = axis, mat = mat, isRing = false, isScale = true };
+        h.colliders.Add(shaft.GetComponent<Collider>());
+        h.colliders.Add(cube.GetComponent<Collider>());
+        h.colliders.Add(envelope);
+        handles.Add(h);
+    }
+
 
     void CreateAxis(Axis axis, Color color, Quaternion rot)
     {
@@ -452,16 +564,32 @@ public class RuntimeTransformGizmo : MonoBehaviour
             h.axisWorld = spaceIsGlobal ? AxisToVector(h.axis) : (target.rotation * AxisToVector(h.axis));
     }
 
+    float ComputeScreenConstantScale(Vector3 worldPos, float sizePx)
+    {
+        // Distância da câmera até o gizmo
+        float d = Vector3.Distance(cam.transform.position, worldPos);
+
+        // Altura visível em world units para "sizePx" pixels na tela
+        float worldHeight = 2f * d * Mathf.Tan(cam.fieldOfView * 0.5f * Mathf.Deg2Rad) * (sizePx / Screen.height);
+
+        return worldHeight;
+    }
+
     void ApplyModeVisibility()
     {
         if (!target) { SetVisible(false); return; }
 
         bool showRings = (mode == GizmoMode.Rotate);
         bool showArrows = (mode == GizmoMode.Translate);
+        bool showScales = (mode == GizmoMode.Scale);
 
         foreach (var h in handles)
         {
-            bool on = (h.isRing && showRings) || (!h.isRing && showArrows);
+            bool on =
+                (h.isRing && showRings) ||                 // anéis para Rotate
+                (!h.isRing && !h.isScale && showArrows) || // setas para Translate
+                (h.isScale && showScales);                 // cubos para Scale
+
             h.root.gameObject.SetActive(on);
         }
     }

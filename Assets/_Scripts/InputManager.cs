@@ -14,14 +14,22 @@ public class InputManager : MonoBehaviour
 
     void Awake()
     {
-        playerInput = new ();
+        playerInput = new();
         playerActions = playerInput.Player;
         motor = GetComponent<PlayerMotor>();
         look = GetComponent<PlayerLook>();
         selectorMover = GetComponent<RuntimeSelectorMover_Input>();
 
         playerActions.Jump.performed += ctx => motor.Jump();
-        playerActions.Interact.performed += ctx => motor.Interact();
+
+        // >>> ALTERE ESTA LINHA para aplicar o bloqueio de inputs ao abrir/fechar o menu
+        playerActions.Interact.performed += ctx =>
+        {
+            motor.Interact();                            // abre/fecha menu + cursor
+            ApplyMenuState(motor.IsMenuOpen);            // ativa/desativa ações
+            if (motor.IsMenuOpen) motor.StopMovement();  // opcional: para drift
+        };
+
         playerActions.Selection.performed += ctx => selectorMover.Selection();
         playerActions.Gizmo.performed += ctx => selectorMover.ToggleGizmoMode();
 
@@ -30,16 +38,42 @@ public class InputManager : MonoBehaviour
     }
 
 
+    private void ApplyMenuState(bool isMenuOpen)
+    {
+        if (isMenuOpen)
+        {
+            // Desativa WASD e Look; mouse fica livre pra UI
+            if (playerActions.Move.enabled) playerActions.Move.Disable();
+            if (playerActions.Look.enabled) playerActions.Look.Disable();
+            // Se quiser, também desative Jump/Selection/Gizmo enquanto menu aberto:
+            // if (playerActions.Jump.enabled) playerActions.Jump.Disable();
+            // if (playerActions.Selection.enabled) playerActions.Selection.Disable();
+            // if (playerActions.Gizmo.enabled) playerActions.Gizmo.Disable();
+        }
+        else
+        {
+            // Reativa quando fechar o menu
+            if (!playerActions.Move.enabled) playerActions.Move.Enable();
+            if (!playerActions.Look.enabled) playerActions.Look.Enable();
+            // Reative aqui se tiver desativado outros:
+            // if (!playerActions.Jump.enabled) playerActions.Jump.Enable();
+            // if (!playerActions.Selection.enabled) playerActions.Selection.Enable();
+            // if (!playerActions.Gizmo.enabled) playerActions.Gizmo.Enable();
+        }
+    }
+
     void FixedUpdate()
     {
-        // tell the playerMotor to move using the value from our movement action
-        motor.ProcessMove(playerActions.Move.ReadValue<Vector2>());
+        // >>> NÃO processa movimento quando o menu estiver aberto
+        if (!motor.IsMenuOpen)
+            motor.ProcessMove(playerActions.Move.ReadValue<Vector2>());
     }
 
     void LateUpdate()
     {
-        // tell the playerMotor to look using the value from our look action
-        look.ProcessLook(playerActions.Look.ReadValue<Vector2>());
+        // >>> NÃO processa look quando o menu estiver aberto
+        if (!motor.IsMenuOpen)
+            look.ProcessLook(playerActions.Look.ReadValue<Vector2>());
     }
 
     private void OnEnable()

@@ -1,23 +1,26 @@
 using System.Collections;
-using System;
 using UnityEngine;
 using UnityEngine.Networking;
 using Newtonsoft.Json.Linq;
+using System.Text.RegularExpressions;
 
 public class TainacanImageLoader : MonoBehaviour
 {
-    // ? seu endpoint original
+    // Endpoint da coleção no Tainacan
+    [Header("Tainacan")]
     public string apiUrl = "https://tainacan.ufsm.br/acervo-artistico/wp-json/tainacan/v2/collection/2174/items/";
-    public Renderer[] planeRenderers; // arraste os planos aqui no Inspector
 
-    // ? base do proxy (Vercel)
+    // Planos onde as texturas serão aplicadas (arraste no Inspector)
+    [Header("Destino das Imagens")]
+    public Renderer[] planeRenderers;
+
     const string ProxyBase = "https://projetosoftware2-ufsm.vercel.app/api/img?url=";
 
-    // ? usa proxy só no WebGL (no Editor/Standalone acessa direto)
+    // Usa proxy SOMENTE no WebGL (no Editor/Standalone acessa direto o domínio original)
     static string Proxied(string remoteUrl)
     {
 #if UNITY_WEBGL && !UNITY_EDITOR
-        return ProxyBase + Uri.EscapeDataString(remoteUrl);
+        return ProxyBase + System.Uri.EscapeDataString(remoteUrl);
 #else
         return remoteUrl;
 #endif
@@ -30,60 +33,76 @@ public class TainacanImageLoader : MonoBehaviour
 
     IEnumerator LoadImages()
     {
-        // IMPORTANTE: JSON também é cross-origin ? passe pelo proxy no WebGL
         using (UnityWebRequest uwr = UnityWebRequest.Get(Proxied(apiUrl)))
         {
+            uwr.timeout = 20;
             yield return uwr.SendWebRequest();
 
             if (uwr.result != UnityWebRequest.Result.Success)
             {
-                Debug.LogError("Erro na requisição: " + uwr.error);
+                Debug.LogError($"[Tainacan] Erro na requisição JSON: {uwr.error}\nURL: {uwr.url}");
                 yield break;
             }
 
             string json = uwr.downloadHandler.text;
-            Debug.Log("JSON recebido: " + json.Substring(0, Mathf.Min(200, json.Length)) + "...");
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                Debug.LogError("[Tainacan] JSON vazio.");
+                yield break;
+            }
+
+            Debug.Log($"[Tainacan] JSON recebido (prévia): {json.Substring(0, Mathf.Min(200, json.Length))}...");
 
             JObject obj;
-            try { obj = JObject.Parse(json); }
+            try
+            {
+                obj = JObject.Parse(json);
+            }
             catch (System.Exception e)
             {
-                Debug.LogError("Erro ao parsear JSON: " + e.Message);
+                Debug.LogError($"[Tainacan] Erro ao parsear JSON: {e.Message}");
                 yield break;
             }
 
             JArray items = (JArray)obj["items"];
             if (items == null || items.Count == 0)
             {
-                Debug.LogWarning("Nenhum item encontrado na coleção!");
+                Debug.LogWarning("[Tainacan] Nenhum item encontrado na coleção.");
                 yield break;
             }
 
             int count = Mathf.Min(items.Count, planeRenderers.Length);
+            if (count == 0)
+            {
+                Debug.LogWarning("[Tainacan] Não há Renderers atribuídos no Inspector.");
+                yield break;
+            }
 
             for (int i = 0; i < count; i++)
             {
-                string html = items[i]["document_as_html"]?.ToString();
-                if (string.IsNullOrEmpty(html))
+                if (planeRenderers[i] == null)
                 {
-                    Debug.LogWarning($"document_as_html vazio no item {i}!");
+                    Debug.LogWarning($"[Tainacan] Renderer nulo no índice {i}.");
                     continue;
                 }
 
-                // primeira <img src="...">
-                var imgMatch = System.Text.RegularExpressions.Regex.Match(
-                    html, "<img[^>]+src=\\\\?\\\"([^\\\"]+)"
-                );
+                string html = items[i]["document_as_html"]?.ToString();
+                if (string.IsNullOrEmpty(html))
+                {
+                    Debug.LogWarning($"[Tainacan] document_as_html vazio no item {i}.");
+                    continue;
+                }
 
+                // Captura a primeira <img src="...">
+                // Observação: o JSON pode escapar aspas, por isso o padrão aceita barra invertida opcional.
+                var imgMatch = Regex.Match(html, "<img[^>]+src=\\\\?\\\"([^\\\"]+)");
                 if (!imgMatch.Success)
                 {
-                    Debug.LogWarning($"Nenhuma imagem encontrada no HTML do item {i}!");
+                    Debug.LogWarning($"[Tainacan] Nenhuma imagem encontrada no HTML do item {i}.");
                     continue;
                 }
 
                 string imageUrl = imgMatch.Groups[1].Value.Replace("\\/", "/");
-
-                // BAIXA a imagem (via proxy no WebGL) e aplica no plano
                 yield return StartCoroutine(ApplyImageToPlane(imageUrl, planeRenderers[i]));
             }
         }
@@ -91,25 +110,35 @@ public class TainacanImageLoader : MonoBehaviour
 
     IEnumerator ApplyImageToPlane(string url, Renderer planeRenderer)
     {
-        using (UnityWebRequest imgRequest = UnityWebRequestTexture.GetTexture(Proxied(url)))
+        string finalUrl = Proxied(url);
+        using (UnityWebRequest imgRequest = UnityWebRequestTexture.GetTexture(finalUrl))
         {
+            imgRequest.timeout = 30;
             yield return imgRequest.SendWebRequest();
 
             if (imgRequest.result != UnityWebRequest.Result.Success)
             {
-                Debug.LogError("Erro ao baixar imagem: " + imgRequest.error);
+                Debug.LogError($"[Tainacan] Erro ao baixar imagem: {imgRequest.error}\nURL: {finalUrl}\n" +
+                               "Se estiver no WebGL, isso normalmente é CORS — use o proxy (já habilitado neste script).");
                 yield break;
             }
 
             try
             {
                 Texture2D tex = DownloadHandlerTexture.GetContent(imgRequest);
+                if (tex == null)
+                {
+                    Debug.LogError("[Tainacan] Texture2D nula após download.");
+                    yield break;
+                }
+
+                // Aplica textura
                 planeRenderer.material.mainTexture = tex;
-                Debug.Log("Imagem aplicada com sucesso!");
+                Debug.Log($"[Tainacan] Imagem aplicada com sucesso no renderer '{planeRenderer.name}'.");
             }
             catch (System.Exception e)
             {
-                Debug.LogError("Erro ao aplicar imagem: " + e.Message);
+                Debug.LogError($"[Tainacan] Erro ao aplicar imagem: {e.Message}");
             }
         }
     }

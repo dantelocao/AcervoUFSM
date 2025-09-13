@@ -15,6 +15,13 @@ public class PlayerMotor : MonoBehaviour
     public float gravity = -9.8f;
     public float jumpHeight = 3f;
 
+    public bool IsMenuOpen => debugMenuActive;
+
+    public void StopMovement()
+    {
+        playerVelocity = Vector3.zero;
+    }
+
     void Start()
     {
         characterController = GetComponent<CharacterController>();

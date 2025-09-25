@@ -1,0 +1,31 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0ac46329aeb7e684ebef5eb3d4b4e3c2, type: 3}
+  m_Name: "Cores Padr\xE3o"
+  m_EditorClassIdentifier: 
+  entries:
+  - id: cor_verde
+    material: {fileID: 2100000, guid: 4d64e507cf150b44e9a8fc0efedffc87, type: 2}
+  - id: cor_azul
+    material: {fileID: 2100000, guid: 39a484470af64f040b314f7ca9eff293, type: 2}
+  - id: cor_vermelho
+    material: {fileID: 2100000, guid: 563ccef0874cd7e4baf0d2d0159ca6a6, type: 2}
+  - id: cor_amarelo
+    material: {fileID: 2100000, guid: 1932dec744818f848b91434060f674fc, type: 2}
+  - id: cor_preto
+    material: {fileID: 2100000, guid: 383f1585568aa08458448d235b2252fe, type: 2}
+  - id: cor_rosa
+    material: {fileID: 2100000, guid: 12c0b8a9b2dce654b95540b594d1d255, type: 2}
+  - id: concrete
+    material: {fileID: 2100000, guid: 54d5c8fde586952449acda57f1cb3483, type: 2}
+  - id: grass
+    material: {fileID: 2100000, guid: ab535c728636b5949ab0763e1be8ef65, type: 2}

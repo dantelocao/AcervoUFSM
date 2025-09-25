@@ -28,6 +28,13 @@ public class RuntimeSelectorMover_Input : MonoBehaviour
     public TMP_InputField scaleZField;
 
     private EditableObject _current;
+
+    // === NOVO: expõe o alvo atual ===
+    public EditableObject Current => _current;
+
+    // === NOVO: evento disparado quando a seleção muda ===
+    public event System.Action<EditableObject> OnSelectionChanged;
+
     private bool _uiEditMode = false;
 
     void Awake()
@@ -89,6 +96,10 @@ public class RuntimeSelectorMover_Input : MonoBehaviour
             if (eo != null)
             {
                 _current = eo;
+
+                // === NOVO: notifica ouvintes (ex.: dropdown) ===
+                OnSelectionChanged?.Invoke(_current);
+
                 if (gizmo != null) gizmo.Attach(_current.transform);
                 SetEditMode(false, updateFields: false);
                 UpdateLabel();
@@ -101,6 +112,10 @@ public class RuntimeSelectorMover_Input : MonoBehaviour
     private void Deselect()
     {
         _current = null;
+
+        // === NOVO: notifica que não há seleção ===
+        OnSelectionChanged?.Invoke(null);
+
         if (gizmo != null) gizmo.Detach();
         SetEditMode(false, updateFields: false);
         UpdateLabel();

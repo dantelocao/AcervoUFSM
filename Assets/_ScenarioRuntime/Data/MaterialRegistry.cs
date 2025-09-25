@@ -1,35 +1,88 @@
 // Assets/_ScenarioRuntime/MaterialRegistry.cs
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 
+[DefaultExecutionOrder(-100)] // inicializa cedo
 public class MaterialRegistry : MonoBehaviour
 {
     public static MaterialRegistry Instance { get; private set; }
 
-    [System.Serializable]
-    public class Entry { public string id; public Material material; }
+    [Header("Fonte de dados (ScriptableObject)")]
+    [SerializeField] private MaterialRegistryData data;
 
-    [Tooltip("Mapeia IDs estáveis para materiais empacotados na build.")]
-    public List<Entry> entries = new();
-
-    private readonly Dictionary<string, Material> _byId = new();
-    private readonly Dictionary<Material, string> _byMat = new();
+    // Mapas internos
+    private Dictionary<string, Material> _byId;
+    private Dictionary<Material, string> _byMat;
 
     private void Awake()
     {
-        Instance = this;
-        _byId.Clear(); _byMat.Clear();
-        foreach (var e in entries)
+        if (Instance != null && Instance != this)
         {
-            if (e == null || e.material == null || string.IsNullOrEmpty(e.id)) continue;
+            Debug.LogWarning("[MaterialRegistry] Já existe uma instância. Destruindo a duplicata.");
+            Destroy(gameObject);
+            return;
+        }
+        Instance = this;
+        BuildIndexes();
+        // Opcional: manter entre cenas
+        // DontDestroyOnLoad(gameObject);
+    }
+
+#if UNITY_EDITOR
+    private void OnValidate()
+    {
+        // Atualiza índices no editor quando mudar o asset
+        if (Application.isPlaying) return;
+        BuildIndexes();
+    }
+#endif
+
+    private void BuildIndexes()
+    {
+        _byId = new Dictionary<string, Material>(StringComparer.Ordinal);
+        _byMat = new Dictionary<Material, string>();
+
+        if (data == null)
+        {
+            Debug.LogWarning("[MaterialRegistry] Data (ScriptableObject) não atribuído.");
+            return;
+        }
+
+        foreach (var e in data.entries)
+        {
+            if (e == null) continue;
+            if (string.IsNullOrWhiteSpace(e.id)) continue;
+            if (e.material == null) continue;
+
             _byId[e.id] = e.material;
-            if (!_byMat.ContainsKey(e.material)) _byMat[e.material] = e.id;
+            if (!_byMat.ContainsKey(e.material))
+                _byMat[e.material] = e.id;
         }
     }
 
-    public Material Get(string id) =>
-        (id != null && _byId.TryGetValue(id, out var m)) ? m : null;
+    // === API esperada pelo seu SceneStateManager ===
 
-    public string GetId(Material m) =>
-        (m != null && _byMat.TryGetValue(m, out var id)) ? id : null;
+    /// <summary>Retorna o Material pelo id (ou null se não existir).</summary>
+    public Material Get(string id)
+    {
+        if (string.IsNullOrEmpty(id) || _byId == null) return null;
+        return _byId.TryGetValue(id, out var mat) ? mat : null;
+    }
+
+    /// <summary>Retorna o id correspondente a um Material (ou null).</summary>
+    public string GetId(Material material)
+    {
+        if (material == null || _byMat == null) return null;
+        return _byMat.TryGetValue(material, out var id) ? id : null;
+    }
+
+    // (Opcional) útil para UI/listas
+    public IEnumerable<string> AllIds()
+    {
+        if (data == null) yield break;
+        foreach (var e in data.entries)
+            if (e != null && !string.IsNullOrWhiteSpace(e.id))
+                yield return e.id;
+    }
 }

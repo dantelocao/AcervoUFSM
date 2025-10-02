@@ -1,163 +1,144 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
 using UnityEngine;
 using UnityEngine.Networking;
-using Newtonsoft.Json.Linq;
 
+/// <summary>
+/// Baixa e aplica as imagens de ScenarioData.artworks por objectId,
+/// usando cache em sessão, MaterialPropertyBlock (sem instanciar materiais),
+/// proxy no WebGL (CORS) e limite de concorrência.
+/// </summary>
 public class SelectedArtworksLoader : MonoBehaviour
 {
-    [Header("Planos que receberão as texturas")]
-    public Renderer[] planeRenderers;
+    [Header("Concorrência")]
+    [Range(1, 8)] public int maxConcurrentDownloads = 4;
 
-    [Header("Chave do localStorage (React)")]
-    public string localStorageKey = "selectedArtworks";
+    [Header("WebGL Proxy (somente WebGL)")]
+    [Tooltip("Prefixo para contornar CORS no WebGL. Ex.: https://.../api/img?url=")]
+    public string proxyBase = "https://projetosoftware2-ufsm.vercel.app/api/img?url=";
 
-    // Base do proxy (usado somente no WebGL)
-    private const string ProxyBase = "https://projetosoftware2-ufsm.vercel.app/api/img?url=";
+    // cache por sessão (URL -> Texture2D)
+    private readonly Dictionary<string, Texture2D> _cache = new();
+    private int _inFlight;
+
+    // IDs de propriedades comuns (URP / Built-in)
+    static readonly int BaseMapID = Shader.PropertyToID("_BaseMap"); // URP
+    static readonly int MainTexID = Shader.PropertyToID("_MainTex"); // Built-in
 
 #if UNITY_WEBGL && !UNITY_EDITOR
     [DllImport("__Internal")] private static extern IntPtr GetLocalStorage(string key);
-    [DllImport("__Internal")] private static extern void   SetLocalStorage(string key, string json); // opcional
 #endif
 
-    private static string Proxied(string remoteUrl)
+    /// <summary>
+    /// Aplica ScenarioData.artworks fazendo objectId -> EditableObject -> ArtworkSlot -> Renderer.
+    /// </summary>
+    public IEnumerator ApplyArtworksById(
+        IEnumerable<ArtworkEntryById> entries,
+        IReadOnlyDictionary<string, EditableObject> idToEditable)
     {
-#if UNITY_WEBGL && !UNITY_EDITOR
-        // IMPORTANTE: respeitar o mesmo case de "ProxyBase"
-        return ProxyBase + Uri.EscapeDataString(remoteUrl);
-#else
-        return remoteUrl;
-#endif
-    }
+        if (entries == null) yield break;
 
-    private void Start()
-    {
-        StartCoroutine(LoadSelectedImages());
-    }
-
-    private IEnumerator LoadSelectedImages()
-    {
-        // Checagem básica
-        if (planeRenderers == null || planeRenderers.Length == 0)
+        foreach (var e in entries)
         {
-            Debug.LogWarning("[SelectedArtworksLoader] Nenhum Renderer atribuído no Inspector.");
-            yield break;
-        }
-
-        string json = ReadSelectedJson();
-        if (string.IsNullOrEmpty(json))
-        {
-            Debug.LogWarning($"[SelectedArtworksLoader] Nada encontrado em '{localStorageKey}'.");
-            yield break;
-        }
-
-        JArray arr;
-        try
-        {
-            arr = JArray.Parse(json);
-        }
-        catch (Exception e)
-        {
-            Debug.LogError("[SelectedArtworksLoader] JSON inválido em selectedArtworks: " + e.Message);
-            yield break;
-        }
-
-        if (arr.Count == 0)
-        {
-            Debug.LogWarning("[SelectedArtworksLoader] Array de artworks vazio.");
-            yield break;
-        }
-
-        int count = Mathf.Min(arr.Count, planeRenderers.Length);
-        for (int i = 0; i < count; i++)
-        {
-            if (planeRenderers[i] == null)
-            {
-                Debug.LogWarning($"[SelectedArtworksLoader] Renderer nulo no índice {i}.");
+            if (e == null || string.IsNullOrWhiteSpace(e.objectId) || string.IsNullOrWhiteSpace(e.imageUrl))
                 continue;
-            }
 
-            var item = arr[i] as JObject;
-            if (item == null)
-            {
-                Debug.LogWarning($"[SelectedArtworksLoader] Item {i} não é um objeto JSON.");
+            if (!idToEditable.TryGetValue(e.objectId, out var eo) || eo == null)
                 continue;
-            }
 
-            string imageUrl = item["imageUrl"]?.ToString();
-            if (string.IsNullOrEmpty(imageUrl))
-            {
-                Debug.LogWarning($"[SelectedArtworksLoader] Sem imageUrl para item {i}.");
+            var slot = eo.GetComponentInChildren<ArtworkSlot>(true);
+            if (slot == null || slot.TargetRenderer == null)
                 continue;
-            }
 
-            yield return StartCoroutine(ApplyImageToPlane(imageUrl, planeRenderers[i]));
+            // Limita simultâneos
+            while (_inFlight >= Mathf.Max(1, maxConcurrentDownloads))
+                yield return null;
+
+            _inFlight++;
+            yield return StartCoroutine(DownloadAndApply(e.imageUrl, slot.TargetRenderer));
+            _inFlight--;
         }
     }
 
-    private string ReadSelectedJson()
+    /// <summary>
+    /// Limpa o cache de sessão (se quiser forçar re-download).
+    /// </summary>
+    public void ClearSessionCache()
     {
-#if UNITY_WEBGL && !UNITY_EDITOR
-        try
-        {
-            IntPtr ptr = GetLocalStorage(localStorageKey);
-            if (ptr == IntPtr.Zero) return null;
-
-            // Lê UTF-8; disponível em Unity 2021+ / .NET 4.x
-            string s = Marshal.PtrToStringUTF8(ptr);
-
-            // Se quiser ser 100% correto com memória, exponha um Free(ptr) no .jslib e chame aqui.
-            return s;
-        }
-        catch (Exception e)
-        {
-            Debug.LogError("[SelectedArtworksLoader] Erro ao ler localStorage no WebGL: " + e.Message);
-            return null;
-        }
-#else
-        // Editor/Standalone: fallback opcional via PlayerPrefs
-        return PlayerPrefs.HasKey(localStorageKey) ? PlayerPrefs.GetString(localStorageKey) : null;
-#endif
+        _cache.Clear();
     }
 
-    private IEnumerator ApplyImageToPlane(string imageUrl, Renderer planeRenderer)
-    {
-        string finalUrl = Proxied(imageUrl);
+    // ----------------- Internals -----------------
 
-        using (UnityWebRequest imgRequest = UnityWebRequestTexture.GetTexture(finalUrl))
+    private IEnumerator DownloadAndApply(string imageUrl, Renderer r)
+    {
+        if (!r) yield break;
+
+        // cache de sessão
+        if (_cache.TryGetValue(imageUrl, out var cached) && cached)
         {
-            imgRequest.timeout = 30; // evita travar
-            yield return imgRequest.SendWebRequest();
+            ApplyTexWithMPB(r, cached);
+            yield break;
+        }
+
+        var finalUrl = Proxied(imageUrl);
+
+        using (var req = UnityWebRequestTexture.GetTexture(finalUrl, true)) // nonReadable = true (economiza RAM)
+        {
+            req.timeout = 30;
+            yield return req.SendWebRequest();
 
 #if UNITY_2020_2_OR_NEWER
-            if (imgRequest.result != UnityWebRequest.Result.Success)
+            if (req.result != UnityWebRequest.Result.Success)
 #else
-            if (imgRequest.isNetworkError || imgRequest.isHttpError)
+            if (req.isNetworkError || req.isHttpError)
 #endif
             {
-                Debug.LogError("[SelectedArtworksLoader] Erro ao baixar imagem: " + imgRequest.error +
-                               " | URL: " + finalUrl);
+                Debug.LogWarning($"[ArtworksLoader] Falha download: {req.error} | {finalUrl}");
                 yield break;
             }
 
-            Texture2D tex = null;
-            try
+            var tex = DownloadHandlerTexture.GetContent(req);
+            if (!tex)
             {
-                tex = DownloadHandlerTexture.GetContent(imgRequest);
-            }
-            catch (Exception e)
-            {
-                Debug.LogError("[SelectedArtworksLoader] Erro ao obter Texture2D: " + e.Message);
-            }
-
-            if (tex == null)
-            {
-                Debug.LogError("[SelectedArtworksLoader] Texture2D nula para URL: " + finalUrl);
+                Debug.LogWarning($"[ArtworksLoader] Texture nula: {finalUrl}");
                 yield break;
             }
 
-            planeRenderer.material.mainTexture = tex;
+            _cache[imageUrl] = tex;
+            ApplyTexWithMPB(r, tex);
         }
+    }
+
+    private void ApplyTexWithMPB(Renderer r, Texture2D tex)
+    {
+        if (!r || !tex) return;
+
+        var mpb = new MaterialPropertyBlock();
+        r.GetPropertyBlock(mpb);
+
+        // Tenta URP (_BaseMap); se não, Built-in (_MainTex)
+        if (HasProperty(r, BaseMapID)) mpb.SetTexture(BaseMapID, tex);
+        else if (HasProperty(r, MainTexID)) mpb.SetTexture(MainTexID, tex);
+        else mpb.SetTexture(MainTexID, tex); // fallback
+
+        r.SetPropertyBlock(mpb);
+    }
+
+    private static bool HasProperty(Renderer r, int propId)
+    {
+        var mat = r.sharedMaterial;
+        return mat && mat.HasProperty(propId);
+    }
+
+    private string Proxied(string remoteUrl)
+    {
+#if UNITY_WEBGL && !UNITY_EDITOR
+        if (!string.IsNullOrEmpty(proxyBase))
+            return proxyBase + Uri.EscapeDataString(remoteUrl);
+#endif
+        return remoteUrl;
     }
 }

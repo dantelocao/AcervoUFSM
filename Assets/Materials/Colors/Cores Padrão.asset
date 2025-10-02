@@ -29,3 +29,7 @@ MonoBehaviour:
     material: {fileID: 2100000, guid: 54d5c8fde586952449acda57f1cb3483, type: 2}
   - id: grass
     material: {fileID: 2100000, guid: ab535c728636b5949ab0763e1be8ef65, type: 2}
+  - id: wood
+    material: {fileID: 2100000, guid: c6162265f37064b4abf97961f17e8639, type: 2}
+  - id: sand
+    material: {fileID: 2100000, guid: ee8ce1f50921b8c439cef9cad4a67697, type: 2}

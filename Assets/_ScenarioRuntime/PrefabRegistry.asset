@@ -1,0 +1,33 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e3ec8d59d32b7ef489776060bd13d569, type: 3}
+  m_Name: PrefabRegistry
+  m_EditorClassIdentifier: 
+  items:
+  - id: Cube
+    prefab: {fileID: 2250684955565447869, guid: a80a3d1fce6a2c44c8fb138f0ab42edb, type: 3}
+  - id: Sphere
+    prefab: {fileID: 3946441680182642261, guid: 73cf502282731d8448315a19db1c6b42, type: 3}
+  - id: Obra
+    prefab: {fileID: 5645434629862435204, guid: c9c9915d963e6614bbfd1009805185dd, type: 3}
+  - id: Door
+    prefab: {fileID: 4919214117264295866, guid: 52187d2cac5e07245a331370f5767e86, type: 3}
+  - id: Floor
+    prefab: {fileID: 332877646384332300, guid: e754691b2bd0da84a8559e8855f9c9c3, type: 3}
+  - id: Roof
+    prefab: {fileID: 3076126525595034531, guid: 19184181165119c44b753c0e61882f46, type: 3}
+  - id: Wall
+    prefab: {fileID: 5684998309416778724, guid: 032a1429a1946bd47922a5086b986f30, type: 3}
+  - id: WallCorner
+    prefab: {fileID: 346154943950394923, guid: b2b2686cfe7f0cc4fbb5de2280f7e488, type: 3}
+  - id: Window
+    prefab: {fileID: 3317393044793047764, guid: a3e5ad8d6290c3a4ab2b2fe8b3612a51, type: 3}

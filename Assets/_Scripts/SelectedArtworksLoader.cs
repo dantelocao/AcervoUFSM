@@ -7,24 +7,26 @@ using Newtonsoft.Json.Linq;
 
 public class SelectedArtworksLoader : MonoBehaviour
 {
-    [Header("Planos que receber?o as texturas")]
-    public Renderer[] planeRenderers;
+    [Header("Prefab e Parent")]
+    public GameObject obraPrefab;
+    public Transform obraParent;
+
+    [Header("Layout")]
+    public Vector3 startPosition = Vector3.zero;
+    public float offsetX = 1.0f;
 
     [Header("Chave do localStorage (React)")]
     public string localStorageKey = "selectedArtworks";
 
-    // Base do proxy (usado somente no WebGL)
     private const string ProxyBase = "https://projetosoftware2-ufsm.vercel.app/api/img?url=";
 
 #if UNITY_WEBGL && !UNITY_EDITOR
     [DllImport("__Internal")] private static extern IntPtr GetLocalStorage(string key);
-    [DllImport("__Internal")] private static extern void   SetLocalStorage(string key, string json); // opcional
 #endif
 
     private static string Proxied(string remoteUrl)
     {
 #if UNITY_WEBGL && !UNITY_EDITOR
-        // IMPORTANTE: respeitar o mesmo case de "ProxyBase"
         return ProxyBase + Uri.EscapeDataString(remoteUrl);
 #else
         return remoteUrl;
@@ -33,18 +35,23 @@ public class SelectedArtworksLoader : MonoBehaviour
 
     private void Start()
     {
-        StartCoroutine(LoadSelectedImages());
-    }
-
-    private IEnumerator LoadSelectedImages()
-    {
-        // Checagem b?sica
-        if (planeRenderers == null || planeRenderers.Length == 0)
+        if (obraPrefab == null)
         {
-            Debug.LogWarning("[SelectedArtworksLoader] Nenhum Renderer atribu?do no Inspector.");
-            yield break;
+            Debug.LogError("[SelectedArtworksLoader] Nenhum prefab atribuído.");
+            return;
         }
 
+        if (obraParent == null)
+        {
+            Debug.LogError("[SelectedArtworksLoader] Nenhum parent atribuído.");
+            return;
+        }
+
+        StartCoroutine(SpawnArtworksFromJson());
+    }
+
+    private IEnumerator SpawnArtworksFromJson()
+    {
         string json = ReadSelectedJson();
         if (string.IsNullOrEmpty(json))
         {
@@ -59,40 +66,64 @@ public class SelectedArtworksLoader : MonoBehaviour
         }
         catch (Exception e)
         {
-            Debug.LogError("[SelectedArtworksLoader] JSON inv?lido em selectedArtworks: " + e.Message);
+            Debug.LogError("[SelectedArtworksLoader] JSON inválido: " + e.Message);
             yield break;
         }
 
         if (arr.Count == 0)
         {
-            Debug.LogWarning("[SelectedArtworksLoader] Array de artworks vazio.");
+            Debug.LogWarning("[SelectedArtworksLoader] Nenhuma obra selecionada.");
             yield break;
         }
 
-        int count = Mathf.Min(arr.Count, planeRenderers.Length);
-        for (int i = 0; i < count; i++)
+        for (int i = 0; i < arr.Count; i++)
         {
-            if (planeRenderers[i] == null)
-            {
-                Debug.LogWarning($"[SelectedArtworksLoader] Renderer nulo no ?ndice {i}.");
-                continue;
-            }
-
-            var item = arr[i] as JObject;
+            JObject item = arr[i] as JObject;
             if (item == null)
             {
-                Debug.LogWarning($"[SelectedArtworksLoader] Item {i} n?o ? um objeto JSON.");
+                Debug.LogWarning($"[SelectedArtworksLoader] Item {i} não é JSON válido.");
                 continue;
             }
 
             string imageUrl = item["imageUrl"]?.ToString();
             if (string.IsNullOrEmpty(imageUrl))
             {
-                Debug.LogWarning($"[SelectedArtworksLoader] Sem imageUrl para item {i}.");
+                Debug.LogWarning($"[SelectedArtworksLoader] Sem imageUrl em item {i}.");
                 continue;
             }
 
-            yield return StartCoroutine(ApplyImageToPlane(imageUrl, planeRenderers[i]));
+            Vector3 pos = startPosition + new Vector3(offsetX * i, 0f, 0f);
+
+            GameObject go = Instantiate(obraPrefab, pos, obraPrefab.transform.rotation, obraParent);
+
+            ArtworkSlot slot = go.GetComponentInChildren<ArtworkSlot>();
+            if (slot == null || !slot.IsValid)
+            {
+                Debug.LogError($"[SelectedArtworksLoader] Prefab sem ArtworkSlot. Index {i}");
+                continue;
+            }
+
+            yield return StartCoroutine(ApplyImage(imageUrl, slot.TargetRenderer));
+
+            ArtworkInfo info = go.GetComponent<ArtworkInfo>();
+            if (info == null) info = go.AddComponent<ArtworkInfo>();
+            info.imageUrl = imageUrl;
+
+            EditableObject eo = go.GetComponent<EditableObject>();
+            if (eo != null && SceneStateManager.Instance != null && SceneStateManager.Instance.CurrentData != null)
+            {
+                SceneStateManager.Instance.CurrentData.artworks.Add(new ArtworkEntryById
+                {
+                    objectId = eo.Id,
+                    imageUrl = imageUrl
+                });
+
+                Debug.Log($"Registrada artwork: ID={eo.Id} URL={imageUrl}");
+            }
+            else
+            {
+                Debug.LogError("[SelectedArtworksLoader] NÃO conseguiu registrar artwork no CurrentData.");
+            }
         }
     }
 
@@ -103,61 +134,39 @@ public class SelectedArtworksLoader : MonoBehaviour
         {
             IntPtr ptr = GetLocalStorage(localStorageKey);
             if (ptr == IntPtr.Zero) return null;
-
-            // L? UTF-8; dispon?vel em Unity 2021+ / .NET 4.x
-            string s = Marshal.PtrToStringUTF8(ptr);
-
-            // Se quiser ser 100% correto com mem?ria, exponha um Free(ptr) no .jslib e chame aqui.
-            return s;
+            return Marshal.PtrToStringUTF8(ptr);
         }
         catch (Exception e)
         {
-            Debug.LogError("[SelectedArtworksLoader] Erro ao ler localStorage no WebGL: " + e.Message);
+            Debug.LogError("[SelectedArtworksLoader] Erro ao ler localStorage WebGL: " + e.Message);
             return null;
         }
 #else
-        // Editor/Standalone: fallback opcional via PlayerPrefs
         return PlayerPrefs.HasKey(localStorageKey) ? PlayerPrefs.GetString(localStorageKey) : null;
 #endif
     }
 
-    private IEnumerator ApplyImageToPlane(string imageUrl, Renderer planeRenderer)
+    private IEnumerator ApplyImage(string imageUrl, Renderer renderer)
     {
         string finalUrl = Proxied(imageUrl);
 
-        using (UnityWebRequest imgRequest = UnityWebRequestTexture.GetTexture(finalUrl))
+        using (UnityWebRequest req = UnityWebRequestTexture.GetTexture(finalUrl))
         {
-            imgRequest.timeout = 30; // evita travar
-            yield return imgRequest.SendWebRequest();
+            req.timeout = 30;
+            yield return req.SendWebRequest();
 
 #if UNITY_2020_2_OR_NEWER
-            if (imgRequest.result != UnityWebRequest.Result.Success)
+            if (req.result != UnityWebRequest.Result.Success)
 #else
-            if (imgRequest.isNetworkError || imgRequest.isHttpError)
+            if (req.isNetworkError || req.isHttpError)
 #endif
             {
-                Debug.LogError("[SelectedArtworksLoader] Erro ao baixar imagem: " + imgRequest.error +
-                               " | URL: " + finalUrl);
+                Debug.LogError("[SelectedArtworksLoader] Erro ao baixar imagem: " + req.error);
                 yield break;
             }
 
-            Texture2D tex = null;
-            try
-            {
-                tex = DownloadHandlerTexture.GetContent(imgRequest);
-            }
-            catch (Exception e)
-            {
-                Debug.LogError("[SelectedArtworksLoader] Erro ao obter Texture2D: " + e.Message);
-            }
-
-            if (tex == null)
-            {
-                Debug.LogError("[SelectedArtworksLoader] Texture2D nula para URL: " + finalUrl);
-                yield break;
-            }
-
-            planeRenderer.material.mainTexture = tex;
+            Texture2D tex = DownloadHandlerTexture.GetContent(req);
+            renderer.material.mainTexture = tex;
         }
     }
 }

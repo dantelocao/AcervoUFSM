@@ -16,36 +16,42 @@ public class ScenarioRuntimeUI : MonoBehaviour
 {
     [Header("Refs")]
     public SceneStateManager manager;
+    public ScenarioIO io;
 
-    [Header("UI (opcional)")]
+    [Header("UI")]
     public Button btnCaptureToLocal;
     public Button btnApplyFromLocal;
     public Button btnResetDefault;
     public Button btnDownloadJson;
-    public Button btnApplyFromFile; // NOVO: botão para carregar .json do computador
+    public Button btnApplyFromFile;
     public TMP_InputField scenarioNameInput;
 
     [Header("LocalStorage")]
     public string localKey = "scenario_current";
 
     [Header("Viewer por URL")]
-    public bool autoLoadFromUrlParam = true; // lê ?scenarioUrl=...
+    public bool autoLoadFromUrlParam = true;
 
 #if UNITY_WEBGL && !UNITY_EDITOR
-    // Ponte para o plugin .jslib (WebGL)
     [DllImport("__Internal")] private static extern void OpenFilePicker(string gameObjectName, string callbackName);
 #endif
 
-    void Awake()
+    private void Awake()
     {
+        if (!manager)
+            manager = FindObjectOfType<SceneStateManager>();
+
+        if (!io)
+            io = FindObjectOfType<ScenarioIO>();
+
         if (btnCaptureToLocal) btnCaptureToLocal.onClick.AddListener(CaptureToLocal);
         if (btnApplyFromLocal) btnApplyFromLocal.onClick.AddListener(ApplyFromLocal);
         if (btnResetDefault) btnResetDefault.onClick.AddListener(manager.ResetToDefault);
         if (btnDownloadJson) btnDownloadJson.onClick.AddListener(DownloadJson);
-        if (btnApplyFromFile) btnApplyFromFile.onClick.AddListener(ApplyFromFile); // wire do botão novo
+        if (btnApplyFromFile) btnApplyFromFile.onClick.AddListener(ApplyFromFile);
     }
 
-    void Start()
+    private void Start()
     {
 #if UNITY_WEBGL
         if (autoLoadFromUrlParam)
@@ -58,64 +64,88 @@ public class ScenarioRuntimeUI : MonoBehaviour
 #endif
     }
 
+    // =====================================================================
+    // CAPTURE  SALVAR EM LOCALSTORAGE
+    // =====================================================================
     public void CaptureToLocal()
     {
         var name = scenarioNameInput && !string.IsNullOrEmpty(scenarioNameInput.text)
-                   ? scenarioNameInput.text
-                   : "RuntimeCapture";
+            ? scenarioNameInput.text
+            : "RuntimeCapture";
 
-        var data = manager.Capture(name, includeMaterials: true);
-        var json = manager.ToJson(data, true);
+        var data = io.Capture();
+        var json = JsonUtility.ToJson(data, true);
+
         StorageBridge.SaveLocal(localKey, json);
-        Debug.Log($"[ScenarioRuntimeUI] Saved to localStorage '{localKey}'");
+        Debug.Log("[ScenarioRuntimeUI] Saved to localStorage '" + localKey + "'");
     }
 
+    // =====================================================================
+    // APPLY  CARREGAR DO LOCALSTORAGE
+    // =====================================================================
     public void ApplyFromLocal()
     {
         var js = StorageBridge.LoadLocal(localKey);
-        if (string.IsNullOrEmpty(js)) { Debug.LogWarning("localStorage vazio."); return; }
 
-        var data = manager.FromJson(js);
-        if (data == null) { Debug.LogError("JSON inválido."); return; }
+        if (string.IsNullOrEmpty(js))
+        {
+            Debug.LogWarning("localStorage vazio.");
+            return;
+        }
 
-        manager.Apply(data);
+        var data = JsonUtility.FromJson<ScenarioData>(js);
+        if (data == null)
+        {
+            Debug.LogError("JSON inválido.");
+            return;
+        }
+
+        io.Apply(data);
+
         Debug.Log("[ScenarioRuntimeUI] Aplicado JSON do localStorage.");
     }
 
+    // =====================================================================
+    // DOWNLOAD JSON
+    // =====================================================================
     public void DownloadJson()
     {
         var baseName = scenarioNameInput && !string.IsNullOrEmpty(scenarioNameInput.text)
-                       ? scenarioNameInput.text
-                       : "Scenario";
+            ? scenarioNameInput.text
+            : "Scenario";
 
-        // Gera um filename seguro para o SO/navegador
         var safeFileName = MakeSafeFileName(baseName, "Scenario", ".json");
 
-        var data = manager.Capture(baseName, includeMaterials: true);
-        var json = manager.ToJson(data, true);
+        var data = io.Capture();
+        var json = JsonUtility.ToJson(data, true);
 
-        // Usa o nome sanitizado ao salvar/baixar
         StorageBridge.SaveAsDownload(safeFileName, json);
     }
 
-    // ===== NOVO: carregar .json do computador =====
+    // =====================================================================
+    // APPLY FROM FILE (UPLOAD)
+    // =====================================================================
     public void ApplyFromFile()
     {
 #if UNITY_WEBGL && !UNITY_EDITOR
-        // No WebGL: abre o seletor de arquivos; o JS chamará OnFileJsonLoaded(string)
         OpenFilePicker(gameObject.name, "OnFileJsonLoaded");
 #else
 #if UNITY_EDITOR
-        // Editor: abre um diálogo nativo para escolher o arquivo .json
         var path = EditorUtility.OpenFilePanel("Selecione o JSON de cenário", "", "json");
         if (string.IsNullOrEmpty(path)) return;
 
         try
         {
             var json = File.ReadAllText(path);
-            var data = manager.FromJson(json);
-            if (data == null) { Debug.LogError("JSON inválido."); return; }
-            manager.Apply(data);
+            var data = JsonUtility.FromJson<ScenarioData>(json);
+
+            if (data == null)
+            {
+                Debug.LogError("JSON inválido.");
+                return;
+            }
+
+            io.Apply(data);
             Debug.Log("[ScenarioRuntimeUI] Aplicado JSON de arquivo (Editor).");
         }
         catch (Exception ex)
@@ -123,12 +153,11 @@ public class ScenarioRuntimeUI : MonoBehaviour
             Debug.LogError("Erro ao ler arquivo: " + ex.Message);
         }
 #else
-        Debug.LogWarning("Abrir arquivo local está implementado via JS para WebGL e via EditorUtility no Editor.");
+        Debug.LogWarning("Abrir arquivo local disponível somente no Editor ou WebGL via JS.");
 #endif
 #endif
     }
 
-    // Callback chamado pelo .jslib no WebGL com o conteúdo do arquivo selecionado
     public void OnFileJsonLoaded(string json)
     {
         if (string.IsNullOrEmpty(json))
@@ -137,18 +166,20 @@ public class ScenarioRuntimeUI : MonoBehaviour
             return;
         }
 
-        var data = manager.FromJson(json);
+        var data = JsonUtility.FromJson<ScenarioData>(json);
         if (data == null)
         {
             Debug.LogError("JSON inválido recebido do arquivo.");
             return;
         }
 
-        manager.Apply(data);
+        io.Apply(data);
         Debug.Log("[ScenarioRuntimeUI] Aplicado JSON de upload (WebGL).");
     }
-    // ===== FIM da seção NOVA =====
 
+    // =====================================================================
+    // REMOTE LOAD
+    // =====================================================================
     private IEnumerator LoadFromRemoteUrl(string jsonUrl)
     {
         using var req = UnityWebRequest.Get(jsonUrl);
@@ -160,17 +191,21 @@ public class ScenarioRuntimeUI : MonoBehaviour
             yield break;
         }
 
-        var data = manager.FromJson(req.downloadHandler.text);
+        var data = JsonUtility.FromJson<ScenarioData>(req.downloadHandler.text);
         if (data == null)
         {
             Debug.LogError("JSON remoto inválido.");
             yield break;
         }
 
-        manager.Apply(data);
+        io.Apply(data);
+
         Debug.Log("[ScenarioRuntimeUI] Aplicado JSON remoto.");
     }
 
+    // =====================================================================
+    // HELPERS
+    // =====================================================================
     private static string GetQuery(string url, string key)
     {
         if (string.IsNullOrEmpty(url) || string.IsNullOrEmpty(key)) return null;
@@ -193,25 +228,21 @@ public class ScenarioRuntimeUI : MonoBehaviour
         return null;
     }
 
-    // Helper para gerar nomes de arquivo seguros (evita caracteres ilegais e garante .json)
     private static string MakeSafeFileName(string raw, string defaultBase = "Scenario", string requiredExtension = ".json")
     {
         if (string.IsNullOrWhiteSpace(raw)) raw = defaultBase;
 
         var invalid = Path.GetInvalidFileNameChars();
         var sb = new StringBuilder(raw.Length);
+
         foreach (var ch in raw)
-        {
             sb.Append(Array.IndexOf(invalid, ch) >= 0 ? '_' : ch);
-        }
 
         var fileName = sb.ToString().Trim();
         if (string.IsNullOrEmpty(fileName)) fileName = defaultBase;
 
-        // Evita terminar com ponto/espaço
         fileName = fileName.Trim().TrimEnd('.');
 
-        // Garante a extensão
         if (!fileName.EndsWith(requiredExtension, StringComparison.OrdinalIgnoreCase))
             fileName += requiredExtension;
 

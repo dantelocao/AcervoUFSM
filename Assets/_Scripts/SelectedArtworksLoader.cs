@@ -96,6 +96,19 @@ public class SelectedArtworksLoader : MonoBehaviour
 
             GameObject go = Instantiate(obraPrefab, pos, obraPrefab.transform.rotation, obraParent);
 
+            EditableObject eo = go.GetComponent<EditableObject>();
+
+            if (eo != null)
+            {
+                eo.EnsureId();
+                eo.SetPrefabPath("Obra");  // ID exatamente igual ao PrefabRegistry
+            }
+            else
+            {
+                Debug.LogError("Prefab Obra não tem EditableObject!");
+            }
+
+
             ArtworkSlot slot = go.GetComponentInChildren<ArtworkSlot>();
             if (slot == null || !slot.IsValid)
             {
@@ -109,7 +122,6 @@ public class SelectedArtworksLoader : MonoBehaviour
             if (info == null) info = go.AddComponent<ArtworkInfo>();
             info.imageUrl = imageUrl;
 
-            EditableObject eo = go.GetComponent<EditableObject>();
             if (eo != null && SceneStateManager.Instance != null && SceneStateManager.Instance.CurrentData != null)
             {
                 SceneStateManager.Instance.CurrentData.artworks.Add(new ArtworkEntryById

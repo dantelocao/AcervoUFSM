@@ -111,6 +111,9 @@ public class MultiFolderPrefabLoader : MonoBehaviour
             if (editable == null)
                 editable = newInstance.AddComponent<EditableObject>();
 
+            editable.EnsureId(); // <<< você precisa disso
+
+
             if (!newInstance.TryGetComponent<EditableRenderer>(out var er))
                 er = newInstance.AddComponent<EditableRenderer>();
 

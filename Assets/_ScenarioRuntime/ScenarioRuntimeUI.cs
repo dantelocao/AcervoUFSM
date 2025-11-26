@@ -14,6 +14,32 @@ using UnityEditor;
 
 public class ScenarioRuntimeUI : MonoBehaviour
 {
+    // ============================================================
+    // Singleton (previne múltiplas instâncias no runtime)
+    // ============================================================
+    private static ScenarioRuntimeUI instance;
+
+    private void Awake()
+    {
+        if (instance != null && instance != this)
+        {
+            Destroy(gameObject);
+            return;
+        }
+
+        instance = this;
+
+        // Garantir refs
+        if (!manager)
+            manager = FindObjectOfType<SceneStateManager>();
+
+        if (!io)
+            io = FindObjectOfType<ScenarioIO>();
+    }
+
+    // ============================================================
+    // REFERÊNCIAS
+    // ============================================================
     [Header("Refs")]
     public SceneStateManager manager;
     public ScenarioIO io;
@@ -36,21 +62,9 @@ public class ScenarioRuntimeUI : MonoBehaviour
     [DllImport("__Internal")] private static extern void OpenFilePicker(string gameObjectName, string callbackName);
 #endif
 
-    private void Awake()
-    {
-        if (!manager)
-            manager = FindObjectOfType<SceneStateManager>();
-
-        if (!io)
-            io = FindObjectOfType<ScenarioIO>();
-
-        if (btnCaptureToLocal) btnCaptureToLocal.onClick.AddListener(CaptureToLocal);
-        if (btnApplyFromLocal) btnApplyFromLocal.onClick.AddListener(ApplyFromLocal);
-        if (btnResetDefault) btnResetDefault.onClick.AddListener(manager.ResetToDefault);
-        if (btnDownloadJson) btnDownloadJson.onClick.AddListener(DownloadJson);
-        if (btnApplyFromFile) btnApplyFromFile.onClick.AddListener(ApplyFromFile);
-    }
-
+    // ============================================================
+    // START
+    // ============================================================
     private void Start()
     {
 #if UNITY_WEBGL
@@ -64,9 +78,10 @@ public class ScenarioRuntimeUI : MonoBehaviour
 #endif
     }
 
-    // =====================================================================
-    // CAPTURE  SALVAR EM LOCALSTORAGE
-    // =====================================================================
+    // ============================================================
+    // BOTÕES (Chamados pelo Inspector)
+    // ============================================================
+
     public void CaptureToLocal()
     {
         var name = scenarioNameInput && !string.IsNullOrEmpty(scenarioNameInput.text)
@@ -80,9 +95,6 @@ public class ScenarioRuntimeUI : MonoBehaviour
         Debug.Log("[ScenarioRuntimeUI] Saved to localStorage '" + localKey + "'");
     }
 
-    // =====================================================================
-    // APPLY  CARREGAR DO LOCALSTORAGE
-    // =====================================================================
     public void ApplyFromLocal()
     {
         var js = StorageBridge.LoadLocal(localKey);
@@ -101,15 +113,16 @@ public class ScenarioRuntimeUI : MonoBehaviour
         }
 
         io.Apply(data);
-
         Debug.Log("[ScenarioRuntimeUI] Aplicado JSON do localStorage.");
     }
 
-    // =====================================================================
-    // DOWNLOAD JSON
-    // =====================================================================
+    private int dbgCount = 0;
+
     public void DownloadJson()
     {
+        dbgCount++;
+        Debug.Log($"[Debug] DownloadJson CHAMADO ({dbgCount}) frame={Time.frameCount}");
+
         var baseName = scenarioNameInput && !string.IsNullOrEmpty(scenarioNameInput.text)
             ? scenarioNameInput.text
             : "Scenario";
@@ -122,9 +135,6 @@ public class ScenarioRuntimeUI : MonoBehaviour
         StorageBridge.SaveAsDownload(safeFileName, json);
     }
 
-    // =====================================================================
-    // APPLY FROM FILE (UPLOAD)
-    // =====================================================================
     public void ApplyFromFile()
     {
 #if UNITY_WEBGL && !UNITY_EDITOR
@@ -177,9 +187,9 @@ public class ScenarioRuntimeUI : MonoBehaviour
         Debug.Log("[ScenarioRuntimeUI] Aplicado JSON de upload (WebGL).");
     }
 
-    // =====================================================================
-    // REMOTE LOAD
-    // =====================================================================
+    // ============================================================
+    // CARREGAR REMOTO
+    // ============================================================
     private IEnumerator LoadFromRemoteUrl(string jsonUrl)
     {
         using var req = UnityWebRequest.Get(jsonUrl);
@@ -199,13 +209,13 @@ public class ScenarioRuntimeUI : MonoBehaviour
         }
 
         io.Apply(data);
-
         Debug.Log("[ScenarioRuntimeUI] Aplicado JSON remoto.");
     }
 
-    // =====================================================================
+    // ============================================================
     // HELPERS
-    // =====================================================================
+    // ============================================================
+
     private static string GetQuery(string url, string key)
     {
         if (string.IsNullOrEmpty(url) || string.IsNullOrEmpty(key)) return null;

@@ -14,6 +14,9 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/_Scenes/TestesCenario.unity
     guid: d0c0d432c2a90fe438faaf86a849b2d4
+  - enabled: 0
+    path: Assets/_Scenes/CenarioPlayer.unity
+    guid: 30faaf2b025b2e047b53255c455c3c76
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}
   m_UseUCBPForAssetBundles: 0

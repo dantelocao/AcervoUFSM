@@ -1,4 +1,4 @@
-using System;
+Ôªøusing System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -6,7 +6,7 @@ using UnityEngine.Networking;
 
 public class ScenarioIO : MonoBehaviour
 {
-    [Tooltip("Identificador est·vel da cena base")]
+    [Tooltip("Identificador est√°vel da cena base")]
     public string sceneBaseId;
 
     [Tooltip("Registry global de materiais")]
@@ -15,7 +15,7 @@ public class ScenarioIO : MonoBehaviour
     [Tooltip("Registry global de prefabs")]
     public PrefabRegistry prefabRegistry;
 
-    [Tooltip("Parent onde objetos spawnados ser„o colocados")]
+    [Tooltip("Parent onde objetos spawnados ser√£o colocados")]
     public Transform objetosInstanciadosRoot;
 
     private const string ProxyBase = "https://projetosoftware2-ufsm.vercel.app/api/img?url=";
@@ -45,6 +45,9 @@ public class ScenarioIO : MonoBehaviour
             artworks = new List<ArtworkEntryById>()
         };
 
+        // -----------------------------------------------------
+        // OBJECTS
+        // -----------------------------------------------------
         foreach (var editable in FindObjectsOfType<EditableObject>(true))
         {
             var t = editable.transform;
@@ -52,31 +55,44 @@ public class ScenarioIO : MonoBehaviour
             var state = new ObjectState
             {
                 id = editable.Id,
-                prefabPath = editable.PrefabPath,   //  FIX: salva mesmo se vazio
+                prefabPath = editable.PrefabPath, // mant√©m vazio se for obj fixo
+
                 px = ScenarioMath.Round(t.position.x),
                 py = ScenarioMath.Round(t.position.y),
                 pz = ScenarioMath.Round(t.position.z),
+
                 rx = ScenarioMath.Round(ScenarioMath.Normalize360(t.eulerAngles.x)),
                 ry = ScenarioMath.Round(ScenarioMath.Normalize360(t.eulerAngles.y)),
                 rz = ScenarioMath.Round(ScenarioMath.Normalize360(t.eulerAngles.z)),
+
                 sx = ScenarioMath.Round(t.localScale.x),
                 sy = ScenarioMath.Round(t.localScale.y),
                 sz = ScenarioMath.Round(t.localScale.z)
             };
 
+            // -------------------------------------------------
             // MATERIAL
+            // -------------------------------------------------
             var er = editable.GetComponent<EditableRenderer>();
             if (er != null)
             {
-                var r = er.GetComponentInChildren<Renderer>(true);
-                if (r && materialRegistry != null)
-                    state.materialId = materialRegistry.GetId(r.sharedMaterial);
+                // currentMaterialId sempre reflete o material aplicado
+                if (!string.IsNullOrEmpty(er.CurrentMaterialId))
+                {
+                    state.materialId = er.CurrentMaterialId;
+                }
+                else if (!string.IsNullOrEmpty(er.startMaterialId))
+                {
+                    state.materialId = er.startMaterialId;
+                }
             }
 
             data.objects.Add(state);
         }
 
+        // -----------------------------------------------------
         // ARTWORKS
+        // -----------------------------------------------------
         foreach (var info in FindObjectsOfType<ArtworkInfo>(true))
         {
             var eo = info.GetComponent<EditableObject>();
@@ -92,6 +108,20 @@ public class ScenarioIO : MonoBehaviour
             }
         }
 
+        // -----------------------------------------------------
+        // SKYBOX
+        // -----------------------------------------------------
+        var sky = FindObjectOfType<SkyboxDropdown>();
+        if (sky)
+        {
+            var mat = sky.GetCurrentSkyboxMaterial();
+            data.skyboxMaterialName = mat ? mat.name : "";
+        }
+        else
+        {
+            data.skyboxMaterialName = "";
+        }
+
         return data;
     }
 
@@ -102,21 +132,22 @@ public class ScenarioIO : MonoBehaviour
     {
         if (data == null) return;
 
+        // Dicion√°rio de estados de objetos vindos do JSON
         var incoming = new Dictionary<string, ObjectState>(StringComparer.Ordinal);
         foreach (var o in data.objects)
             if (!string.IsNullOrEmpty(o.id))
                 incoming[o.id] = o;
 
         // ---------------------------------------------------------
-        // DESPAWN SÛ objetos SPAWNADOS (prefabPath  vazio)
+        // DESPAWN: remove objetos instanciados que n√£o est√£o no JSON
         // ---------------------------------------------------------
         foreach (var existing in FindObjectsOfType<EditableObject>(true))
         {
-            // FIXO DA CENA N√O destruir
+            // Objeto fixo da cena ‚Üí N√£o destruir (prefabPath == "")
             if (string.IsNullOrEmpty(existing.PrefabPath))
                 continue;
 
-            // Spawnado mas n„o est· no JSON  destruir
+            // Se o JSON n√£o cont√©m esse ID destruir
             if (!incoming.ContainsKey(existing.Id))
                 Destroy(existing.gameObject);
         }
@@ -130,13 +161,13 @@ public class ScenarioIO : MonoBehaviour
 
             if (obj == null)
             {
-                // Objeto SPAWNADO (sÛ se tiver prefabPath)
+                // OBJETO SPAWNADO
                 if (!string.IsNullOrEmpty(st.prefabPath))
                 {
                     var prefab = prefabRegistry.GetPrefab(st.prefabPath);
                     if (prefab == null)
                     {
-                        Debug.LogWarning($"[ScenarioIO] Prefab '{st.prefabPath}' n„o encontrado no PrefabRegistry.");
+                        Debug.LogWarning($"[ScenarioIO] Prefab '{st.prefabPath}' n√£o encontrado.");
                         continue;
                     }
 
@@ -148,30 +179,34 @@ public class ScenarioIO : MonoBehaviour
 
                     obj.SetPrefabPath(st.prefabPath);
 
-                    // garante que SEMPRE haver· EditableRenderer
+                    // Garantir renderer
                     var er = inst.GetComponent<EditableRenderer>();
                     if (er == null)
                         er = inst.AddComponent<EditableRenderer>();
 
-                    // ForÁar ID
+                    // Restaurar ID via reflection
                     typeof(EditableObject)
                         .GetField("id", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)
                         .SetValue(obj, st.id);
                 }
                 else
                 {
-                    // FIXO DA CENA QUE N√O FOI ENCONTRADO? (n„o deve acontecer)
-                    Debug.LogWarning($"[ScenarioIO] Objeto fixo com ID '{st.id}' n„o encontrado na cena.");
+                    // Objeto fixo n√£o encontrado
+                    Debug.LogWarning($"[ScenarioIO] Objeto fixo com ID '{st.id}' n√£o encontrado.");
                     continue;
                 }
             }
 
+            // -------------------------
             // APPLY Transform
+            // -------------------------
             obj.transform.position = new Vector3(st.px, st.py, st.pz);
             obj.transform.rotation = Quaternion.Euler(st.rx, st.ry, st.rz);
             obj.transform.localScale = new Vector3(st.sx, st.sy, st.sz);
 
+            // -------------------------
             // APPLY Material
+            // -------------------------
             if (!string.IsNullOrEmpty(st.materialId))
             {
                 var er = obj.GetComponent<EditableRenderer>();
@@ -185,7 +220,7 @@ public class ScenarioIO : MonoBehaviour
         // ---------------------------------------------------------
         foreach (var art in data.artworks)
         {
-            EditableObject eo = FindEditableById(art.objectId);
+            var eo = FindEditableById(art.objectId);
             if (eo == null) continue;
 
             var slot = eo.GetComponentInChildren<ArtworkSlot>();
@@ -198,6 +233,29 @@ public class ScenarioIO : MonoBehaviour
             StartCoroutine(ApplyImageCoroutine(art.imageUrl, slot.TargetRenderer));
         }
 
+        // ---------------------------------------------------------
+        // APPLY SKYBOX
+        // ---------------------------------------------------------
+        var skyboxName = data.GetSkyboxMaterialNameOrNull();
+        var sky = FindObjectOfType<SkyboxDropdown>();
+        if (sky)
+        {
+            if (string.IsNullOrEmpty(skyboxName))
+            {
+                // fallback
+                sky.SetSkyboxByName("Atmosfera");
+            }
+            else
+            {
+                if (!sky.SetSkyboxByName(skyboxName))
+                {
+                    Debug.LogWarning($"[ScenarioIO] Skybox '{skyboxName}' n√£o encontrado. Usando padr√£o.");
+                    sky.SetSkyboxByName("Atmosfera");
+                }
+            }
+        }
+
+        // Registrar cen√°rio atual
         if (SceneStateManager.Instance != null)
             SceneStateManager.Instance.CurrentData = data;
     }

@@ -3281,6 +3281,7 @@ RectTransform:
   - {fileID: 924810725}
   - {fileID: 203528058}
   - {fileID: 928990666}
+  - {fileID: 345995190}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
@@ -3351,12 +3352,12 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 345995188}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 572.9055, y: 0, z: 2001.471}
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 28.905518, y: -204, z: 2001.471}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 0}
+  m_Father: {fileID: 344891317}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &364039189
 GameObject:
@@ -4801,8 +4802,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 315059244aaee47438dfb38ff9281083, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  id: f673c959b7894be2969a8c0e14e054ea
-  prefabPath: 
+  id: 2671483003ce4ecfa2855601a98016be
+  prefabPath: Cube
 --- !u!65 &500603904
 BoxCollider:
   m_ObjectHideFlags: 0
@@ -5095,7 +5096,19 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 550751378}
   m_OnClick:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 345995189}
+        m_TargetAssemblyTypeName: ScenarioRuntimeUI, Assembly-CSharp
+        m_MethodName: ApplyFromLocal
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
 --- !u!114 &550751378
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -6949,7 +6962,19 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 762047645}
   m_OnClick:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 1241566149}
+        m_TargetAssemblyTypeName: SceneStateManager, Assembly-CSharp
+        m_MethodName: ResetToDefault
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
 --- !u!114 &762047645
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -8889,7 +8914,19 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 1127615529}
   m_OnClick:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 345995189}
+        m_TargetAssemblyTypeName: ScenarioRuntimeUI, Assembly-CSharp
+        m_MethodName: DownloadJson
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
 --- !u!114 &1127615529
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -10194,7 +10231,19 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 1258450532}
   m_OnClick:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 345995189}
+        m_TargetAssemblyTypeName: ScenarioRuntimeUI, Assembly-CSharp
+        m_MethodName: ApplyFromFile
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
 --- !u!114 &1258450532
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -11125,7 +11174,7 @@ Transform:
   m_GameObject: {fileID: 1371170713}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0.959314, z: 0, w: -0.28234148}
-  m_LocalPosition: {x: 26.83, y: 4.12, z: 10.22}
+  m_LocalPosition: {x: 34.87, y: 1.23, z: 10.22}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -11221,7 +11270,7 @@ MonoBehaviour:
   confirmButton: {fileID: 593949607}
   deleteButton: {fileID: 18398852}
   selector: {fileID: 1371170722}
-  prefabRegistry: {fileID: 0}
+  prefabRegistry: {fileID: 11400000, guid: ccd6f77ca07b0fb438ed0ec7532d4ef1, type: 2}
 --- !u!1 &1378809196
 GameObject:
   m_ObjectHideFlags: 0
@@ -12091,7 +12140,19 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 1530767415}
   m_OnClick:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 345995189}
+        m_TargetAssemblyTypeName: ScenarioRuntimeUI, Assembly-CSharp
+        m_MethodName: CaptureToLocal
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
 --- !u!114 &1530767415
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -15499,7 +15560,6 @@ SceneRoots:
   - {fileID: 728764896}
   - {fileID: 102769027}
   - {fileID: 1241566150}
-  - {fileID: 345995190}
   - {fileID: 1017021342}
   - {fileID: 344891317}
   - {fileID: 1844209033}

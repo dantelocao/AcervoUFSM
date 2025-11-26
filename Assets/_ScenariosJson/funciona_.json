@@ -1,0 +1,31 @@
+{
+    "schemaVersion": 3,
+    "appVersion": "0.1.0",
+    "sceneBaseId": "DefaultScene",
+    "name": "Snapshot 2025-11-24T16-05-32Z",
+    "createdAtIso": "2025-11-24T16:05:32.4664214Z",
+    "objects": [
+        {
+            "id": "2671483003ce4ecfa2855601a98016be",
+            "prefabPath": "Cube",
+            "px": 0.0,
+            "py": -2.6459999084472658,
+            "pz": -1.2890000343322755,
+            "rx": 0.0,
+            "ry": 0.0,
+            "rz": 0.0,
+            "sx": 150.0,
+            "sy": 1.0,
+            "sz": 150.0,
+            "materialId": ""
+        }
+    ],
+    "artworks": [],
+    "skyboxMaterialName": "",
+    "skyboxPreset": {
+        "type": "",
+        "materialName": "",
+        "rotation": 0.0,
+        "exposureCompensation": 0.0
+    }
+}

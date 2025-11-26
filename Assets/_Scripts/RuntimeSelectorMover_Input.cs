@@ -125,7 +125,7 @@ public class RuntimeSelectorMover_Input : MonoBehaviour
     {
         _uiEditMode = enable;
 
-        if (infoPanel) infoPanel.SetActive(!enable);
+        if (infoPanel) infoPanel.SetActive(true);
         if (inputPanel) inputPanel.SetActive(enable);
 
         if (gizmo != null) gizmo.ignoreUI = enable;

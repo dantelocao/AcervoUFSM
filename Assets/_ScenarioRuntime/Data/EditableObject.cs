@@ -29,6 +29,13 @@ public class EditableObject : MonoBehaviour
         GenerateIdIfNeeded();
     }
 
+    public void EnsureId()
+    {
+        if (string.IsNullOrEmpty(id))
+            id = System.Guid.NewGuid().ToString("N");
+    }
+
+
     private void GenerateIdIfNeeded()
     {
         // Se estiver editando o prefab original  NÃO salva ID nele
